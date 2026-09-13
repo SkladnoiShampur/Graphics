@@ -1,0 +1,172 @@
+#include <graphics.h>
+#include <conio.h>
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+// Константы для математических расчетов
+const double PI = 3.14159265358979323846;
+
+// Структура для хранения координат точки
+struct Point {
+    double x, y;
+};
+
+// Функция для поворота и масштабирования точки относительно начала координат
+Point transformPoint(Point p, double angle, double scale, double offsetX, double offsetY) {
+    Point res;
+    // Матрица поворота и масштабирования
+    res.x = offsetX + (p.x * cos(angle) - p.y * sin(angle)) * scale;
+    res.y = offsetY + (p.x * sin(angle) + p.y * cos(angle)) * scale;
+    return res;
+}
+
+// Рекурсивная функция построения фрактала
+// x, y - координаты начала (нижний левый угол домика)
+// angle - угол поворота текущего домика (в радианах)
+// scale - масштаб текущего домика
+// depth - глубина рекурсии
+void drawFractal(double x, double y, double angle, double scale, int depth) {
+    // Базовые координаты примитива "домик" (в локальной системе координат)
+    // Масштаб единичного домика: ширина основания = 1, высота стены = 0.7
+    // Крыша: скат слева (0, -0.7) -> (0.6, -1.5), скат справа (0.6, -1.5) -> (1, -0.7)
+    Point p[5];
+    p[0].x = 0.0;   p[0].y = 0.0;    // Нижний левый угол (основание)
+    p[1].x = 1.0;   p[1].y = 0.0;    // Нижний правый угол (основание)
+    p[2].x = 1.0;   p[2].y = -0.7;   // Верхний правый угол стены
+    p[3].x = 0.6;   p[3].y = -1.5;   // Вершина крыши (конек)
+    p[4].x = 0.0;   p[4].y = -0.7;   // Верхний левый угол стены
+
+    // Преобразуем локальные координаты в глобальные (экранные)
+    Point gp[5];
+    for (int i = 0; i < 5; i++) {
+        gp[i] = transformPoint(p[i], angle, scale, x, y);
+    }
+
+    // Рисуем контур домика
+    // Основание
+    line((int)gp[0].x, (int)gp[0].y, (int)gp[1].x, (int)gp[1].y);
+    // Правая стена
+    line((int)gp[1].x, (int)gp[1].y, (int)gp[2].x, (int)gp[2].y);
+    // Правый скат крыши
+    line((int)gp[2].x, (int)gp[2].y, (int)gp[3].x, (int)gp[3].y);
+    // Левый скат крыши
+    line((int)gp[3].x, (int)gp[3].y, (int)gp[4].x, (int)gp[4].y);
+    // Левая стена
+    line((int)gp[4].x, (int)gp[4].y, (int)gp[0].x, (int)gp[0].y);
+
+    // Если достигнута максимальная глубина, выходим из рекурсии
+    if (depth <= 0) return;
+
+    // --- РЕКУРСИВНЫЙ ШАГ ---
+    // На скатах крыши достраиваем по одному домику.
+    // Для этого нужно вычислить новые системы координат для каждого ската.
+
+    // 1. Домик на левом скате
+    // Начало координат нового домика - это верхний левый угол стены (p[4])
+    // Вектор левого ската: p[3] - p[4] = (0.6, -0.8)
+    double leftDx = p[3].x - p[4].x; // 0.6
+    double leftDy = p[3].y - p[4].y; // -0.8
+    
+    // Угол наклона левого ската относительно локальной оси X
+    double leftAngle = atan2(leftDy, leftDx); 
+    
+    // Длина левого ската (коэффициент масштабирования для потомка)
+    double leftScale = sqrt(leftDx * leftDx + leftDy * leftDy); // sqrt(0.36 + 0.64) = 1.0
+
+    // Рекурсивный вызов для левого домика
+    // Новый угол = текущий угол + угол наклона ската
+    // Новый масштаб = текущий масштаб * длина ската
+    drawFractal(gp[4].x, gp[4].y, angle + leftAngle, scale * leftScale, depth - 1);
+
+    // 2. Домик на правом скате
+    // Начало координат нового домика - это вершина крыши (p[3])
+    // Вектор правого ската: p[2] - p[3] = (0.4, 0.8)
+    double rightDx = p[2].x - p[3].x; // 0.4
+    double rightDy = p[2].y - p[3].y; // 0.8
+    
+    // Угол наклона правого ската
+    double rightAngle = atan2(rightDy, rightDx);
+    
+    // Длина правого ската
+    double rightScale = sqrt(rightDx * rightDx + rightDy * rightDy); // sqrt(0.16 + 0.64) = sqrt(0.8) ≈ 0.894
+
+    // Рекурсивный вызов для правого домика
+    drawFractal(gp[3].x, gp[3].y, angle + rightAngle, scale * rightScale, depth - 1);
+}
+
+// Функция для рисования стрелок координатных осей
+void drawAxes() {
+    int maxX = getmaxx();
+    int maxY = getmaxy();
+    
+    // Ось X
+    line(50, maxY - 50, maxX - 50, maxY - 50);
+    line(maxX - 50, maxY - 50, maxX - 70, maxY - 60);
+    line(maxX - 50, maxY - 50, maxX - 70, maxY - 40);
+    outtextxy(maxX - 40, maxY - 60, (char*)"X");
+
+    // Ось Y
+    line(50, maxY - 50, 50, 50);
+    line(50, 50, 40, 70);
+    line(50, 50, 60, 70);
+    outtextxy(30, 40, (char*)"Y");
+}
+
+int main() {
+    // Инициализация графического окна
+    initwindow(1000, 700, "Laboratory Work: Geometric Fractals");
+    
+    // Переменная для глубины рекурсии
+    int depth = 1;
+    char key;
+    
+    // Координаты и масштаб для начального (затравочного) домика
+    double startX = 500.0; // Центр экрана по X
+    double startY = 600.0; // Низ экрана
+    double startScale = 150.0; // Масштаб (размер основания)
+    double startAngle = 0.0; // Начальный угол (без поворота)
+
+    while (1) {
+        // Очистка экрана
+        cleardevice();
+        
+        // Установка цвета и стиля линий
+        setcolor(BLACK);
+        setbkcolor(WHITE);
+        
+        // Рисуем координатные оси
+        drawAxes();
+
+        // Рисуем пунктирную рамку (как на изображении)
+        setlinestyle(DASHED_LINE, 0, 1);
+        rectangle(100, 100, 900, 650);
+        setlinestyle(SOLID_LINE, 0, 1);
+
+        // Вывод информации о текущей глубине
+        char info[50];
+        sprintf(info, "Depth: %d", depth);
+        outtextxy(20, 20, info);
+        outtextxy(20, 40, (char*)"Press UP/DOWN to change depth, ESC to exit");
+
+        // Вызов рекурсивной функции рисования фрактала
+        // Начинаем с нижнего центра экрана
+        drawFractal(startX, startY, startAngle, startScale, depth);
+
+        // Ожидание нажатия клавиши
+        key = getch();
+        
+        // Обработка нажатий клавиш
+        if (key == 27) { // ESC
+            break;
+        } else if (key == 72) { // Стрелка вверх (расширенный код)
+            if (depth < 6) depth++; // Ограничим глубину, чтобы не переполнить стек
+        } else if (key == 80) { // Стрелка вниз
+            if (depth > 0) depth--;
+        }
+    }
+
+    // Закрытие графического режима
+    closegraph();
+    return 0;
+}
