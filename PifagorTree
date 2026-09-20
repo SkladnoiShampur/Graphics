@@ -1,0 +1,167 @@
+#include <windows.h>
+#include <cmath>
+#include <cstring>
+#include <cstdio>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+static HWND g_hwnd = nullptr;
+static HDC g_hdc = nullptr;
+static HPEN g_pen = nullptr;
+
+void line(int x1, int y1, int x2, int y2)
+{
+    MoveToEx(g_hdc, x1, y1, nullptr);
+    LineTo(g_hdc, x2, y2);
+}
+
+void outtextxy(int x, int y, const wchar_t* text)
+{
+    TextOutW(g_hdc, x, y, text, static_cast<int>(wcslen(text)));
+}
+
+bool initwindow(int width, int height, const wchar_t* title)
+{
+    WNDCLASSW wc{};
+    wc.lpfnWndProc = DefWindowProcW;
+    wc.hInstance = GetModuleHandleW(nullptr);
+    wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+    wc.hbrBackground = reinterpret_cast<HBRUSH>(GetStockObject(WHITE_BRUSH));
+    wc.lpszClassName = L"PifagorWnd";
+    RegisterClassW(&wc);
+
+    g_hwnd = CreateWindowW(
+        L"PifagorWnd", title,
+        WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+        100, 100, width, height,
+        nullptr, nullptr, GetModuleHandleW(nullptr), nullptr);
+
+    if (!g_hwnd)
+        return false;
+
+    g_hdc = GetDC(g_hwnd);
+    g_pen = CreatePen(PS_SOLID, 1, RGB(0, 100, 0));
+    SelectObject(g_hdc, g_pen);
+    SelectObject(g_hdc, GetStockObject(NULL_BRUSH));
+    SetBkMode(g_hdc, TRANSPARENT);
+    return true;
+}
+
+void closegraph()
+{
+    if (g_pen)
+        DeleteObject(g_pen);
+    if (g_hdc && g_hwnd)
+        ReleaseDC(g_hwnd, g_hdc);
+    if (g_hwnd)
+        DestroyWindow(g_hwnd);
+    g_pen = nullptr;
+    g_hdc = nullptr;
+    g_hwnd = nullptr;
+}
+
+void waitkey()
+{
+    MSG msg;
+    while (GetMessage(&msg, nullptr, 0, 0) > 0)
+    {
+        if (msg.message == WM_KEYDOWN || msg.message == WM_LBUTTONDOWN)
+            break;
+        if (msg.message == WM_QUIT)
+            break;
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+}
+
+// Максимальная глубина рекурсии
+const int MAX_DEPTH = 12;
+
+double toRad(double deg)
+{
+    return deg * M_PI / 180.0;
+}
+
+/*
+ * Построение геометрического фрактала «Дерево Пифагора».
+ * n     — глубина рекурсии
+ * x0,y0 — растровые координаты опорной точки «домика»
+ * a     — длина основания «домика» (сторона квадрата)
+ * fi    — угол наклона основания (градусы)
+ * alpha — угол наклона «крыши» (между левым катетом и гипотенузой)
+ */
+void pifagor(int n, int x0, int y0, int a, double fi, double alpha)
+{
+    if (n <= 0 || a < 2)
+        return;
+    if (n > MAX_DEPTH)
+        n = MAX_DEPTH;
+
+    const double fiRad = toRad(fi);
+    const double alphaRad = toRad(alpha);
+
+    // Вершины квадрата (ось Y направлена вниз)
+    const int x1 = static_cast<int>(x0 + a * cos(fiRad));
+    const int y1 = static_cast<int>(y0 - a * sin(fiRad));
+
+    const int x3 = static_cast<int>(x0 - a * sin(fiRad));
+    const int y3 = static_cast<int>(y0 - a * cos(fiRad));
+
+    const int x2 = x1 + (x3 - x0);
+    const int y2 = y1 + (y3 - y0);
+
+    // Вершина прямого угла «крыши» (точка 4)
+    const int x4 = static_cast<int>(x3 + a * cos(alphaRad) * cos(fiRad + alphaRad));
+    const int y4 = static_cast<int>(y3 - a * cos(alphaRad) * sin(fiRad + alphaRad));
+
+    // Квадрат (домик)
+    line(x0, y0, x1, y1);
+    line(x1, y1, x2, y2);
+    line(x2, y2, x3, y3);
+    line(x3, y3, x0, y0);
+
+    // Крыша
+    line(x3, y3, x4, y4);
+    line(x4, y4, x2, y2);
+
+    const int a1 = static_cast<int>(a * cos(alphaRad));
+    const int a2 = static_cast<int>(a * sin(alphaRad));
+
+    // Левый и правый домики
+    pifagor(n - 1, x3, y3, a1, fi + alpha, alpha);
+    pifagor(n - 1, x4, y4, a2, fi + alpha - 90.0, alpha);
+}
+
+int main()
+{
+    if (!initwindow(1000, 700, L"Лабораторная работа 1. Дерево Пифагора"))
+    {
+        MessageBoxW(nullptr, L"Не удалось создать окно", L"Ошибка", MB_OK);
+        return 1;
+    }
+
+    const int n = 10;
+    const int x0 = 450;
+    const int y0 = 620;
+    const int a = 100;
+    const double fi = 10.0;
+    const double alpha = 30.0;
+
+    pifagor(n, x0, y0, a, fi, alpha);
+
+    // Подпись строится из текущих значений параметров
+    wchar_t info[160];
+    swprintf(info, 160,
+        L"Глубина n=%d, сторона a=%d, угол fi=%.1f°, угол alpha=%.1f°",
+        n, a, fi, alpha);
+
+    outtextxy(20, 20, L"Дерево Пифагора — геометрический фрактал");
+    outtextxy(20, 40, info);
+    outtextxy(20, 60, L"Нажмите любую клавишу или кликните мышью...");
+
+    waitkey();
+    closegraph();
+    return 0;
+}
